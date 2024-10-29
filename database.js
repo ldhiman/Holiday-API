@@ -13,12 +13,9 @@ const pool = new Pool({
 const initializeDatabase = async () => {
   const client = await pool.connect();
   try {
-    // Drop existing table if it exists
-    await client.query(`DROP TABLE IF EXISTS holidays`);
-
     // Create new table with proper constraints
     await client.query(`
-      CREATE TABLE holidays (
+      CREATE TABLE IF NOT EXISTS holidays (
         id SERIAL,
         name TEXT NOT NULL,
         date DATE NOT NULL,
