@@ -314,6 +314,8 @@ async function main() {
   }
 }
 
+console.log(countries.length);
+
 module.exports = fetchHolidays;
 
 // // Run the main function
