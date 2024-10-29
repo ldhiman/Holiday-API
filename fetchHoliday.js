@@ -317,6 +317,6 @@ async function main() {
 module.exports = fetchHolidays;
 
 // // Run the main function
-main().catch((error) => {
-  console.error("Error during fetching holidays:", error.message);
-});
+// main().catch((error) => {
+//   console.error("Error during fetching holidays:", error.message);
+// });
