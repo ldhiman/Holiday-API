@@ -1,13 +1,35 @@
 const express = require("express");
 const bodyParser = require("body-parser");
-const db = require("./database"); // Import the SQLite database
-const requestData = require("./fetchHoliday"); // Ensure fetchHoliday exports fetchHolidays function
+const db = require("./database"); // Import the PostgreSQL database pool
+const fetchHolidays = require("./fetchHoliday"); // Ensure fetchHoliday exports fetchHolidays function
 
 const app = express();
 app.use(bodyParser.json());
 
+app.get("/api/request_holidays", async (req, res) => {
+  const { year, country } = req.query;
+  if (!year || !country) {
+    res.status(400).send("Year and Country Required!!");
+    return;
+  }
+
+  try {
+    await fetchHolidays(parseInt(year), country)
+      .catch((err) => {
+        res.status(500).send("Holiday Request Failed!!");
+      })
+      .then(() => {
+        res.status(200).send("Holiday Requested!!");
+      });
+  } catch (err) {
+    console.log(err);
+    // res.status(500).send(err);
+    res.status(500).send("Internal Server Error!!");
+  }
+});
+
 // Endpoint to get holidays by date, country, and type
-app.get("/api/holidays", (req, res) => {
+app.get("/api/holidays", async (req, res) => {
   const { date, country, type } = req.query;
 
   // If no parameters are provided, use today's date
@@ -22,24 +44,21 @@ app.get("/api/holidays", (req, res) => {
   const effectiveDate = date || formattedToday;
 
   // Add date filter
-  query += " AND date = ?";
+  query += " AND date = $1";
   params.push(effectiveDate);
 
   if (country) {
-    query += " AND country = ?";
+    query += " AND country = $2";
     params.push(country);
   }
   if (type) {
-    query += " AND type = ?";
+    query += " AND type = $3";
     params.push(type);
   }
 
-  // Execute the query
-  db.all(query, params, (err, rows) => {
-    if (err) {
-      console.error("Database query error:", err.message);
-      return res.status(500).json({ error: err.message });
-    }
+  try {
+    // Execute the query using the PostgreSQL pool
+    const { rows } = await db.query(query, params);
 
     const uniqueHolidays = new Map();
     rows.forEach((row) => {
@@ -61,7 +80,14 @@ app.get("/api/holidays", (req, res) => {
     };
 
     res.json(response);
-  });
+  } catch (err) {
+    console.error("Database query error:", err.message);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/", (req, res) => {
+  res.send("OK");
 });
 
 // Start the server

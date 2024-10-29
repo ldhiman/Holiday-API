@@ -1,17 +1,41 @@
-const sqlite3 = require("sqlite3").verbose();
-const db = new sqlite3.Database("./holidays.db");
+// database.js
+const { Pool } = require("pg");
+require("dotenv").config();
 
-// Initialize the holidays table if it doesn't exist
-db.serialize(() => {
-  db.run(`
-        CREATE TABLE IF NOT EXISTS holidays (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            date TEXT NOT NULL,
-            country TEXT NOT NULL,
-            type TEXT NOT NULL
-        )
-    `);
+const pool = new Pool({
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASSWORD,
+  port: process.env.DB_PORT || 5432,
 });
 
-module.exports = db;
+const initializeDatabase = async () => {
+  const client = await pool.connect();
+  try {
+    // Drop existing table if it exists
+    await client.query(`DROP TABLE IF EXISTS holidays`);
+
+    // Create new table with proper constraints
+    await client.query(`
+      CREATE TABLE holidays (
+        id SERIAL,
+        name TEXT NOT NULL,
+        date DATE NOT NULL,
+        country TEXT NOT NULL,
+        type TEXT NOT NULL,
+        CONSTRAINT holidays_unique UNIQUE (name, date, country)
+      )
+    `);
+    console.log("Database initialized with proper constraints");
+  } catch (err) {
+    console.error("Error creating table:", err);
+  } finally {
+    client.release();
+  }
+};
+
+// Initialize the database
+initializeDatabase().catch(console.error);
+
+module.exports = pool;

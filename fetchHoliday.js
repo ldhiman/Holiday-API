@@ -1,7 +1,8 @@
 const axios = require("axios");
-const db = require("./database"); // Import your database setup
+const db = require("./database"); // Import your PostgreSQL database setup
+require("dotenv").config();
 
-const API_KEY = "gbSArf2vtKJs7p2zn4r0H07oreMmUuNQ";
+const API_KEY = process.env.API_KEY2;
 const BASE_URL = "https://calendarific.com/api/v2/holidays";
 
 // Function to fetch holidays and store them in the database
@@ -22,22 +23,27 @@ async function fetchHolidays(year, country) {
       return; // Exit early if no holidays found
     }
 
-    holidays.forEach((holiday) => {
+    const insertPromises = holidays.map((holiday) => {
       const name = holiday.name;
       const date = holiday.date.iso;
       const type = holiday.type[0] || "General";
 
-      // Insert each holiday into the database
-      db.run(
-        `INSERT INTO holidays (name, date, country, type) VALUES (?, ?, ?, ?)`,
-        [name, date, country, type],
-        (err) => {
-          if (err) {
-            console.error(`Error inserting holiday: ${name}`, err.message);
-          }
-        }
-      );
+      // Insert each holiday into the database using parameterized query with ON CONFLICT
+      return db
+        .query(
+          `INSERT INTO holidays (name, date, country, type) 
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT ON CONSTRAINT holidays_unique 
+         DO UPDATE SET type = EXCLUDED.type`,
+          [name, date, country, type]
+        )
+        .catch((err) => {
+          console.error(`Error inserting holiday: ${name}`, err.message);
+        });
     });
+
+    // Wait for all inserts to complete
+    await Promise.all(insertPromises);
 
     console.log(`Holidays for ${country} in ${year} added to the database.`);
   } catch (error) {
@@ -295,6 +301,8 @@ const countries = [
   "ZW",
 ];
 
+// console.log(countries.length);
+
 // Main function to initiate holiday fetching for all countries
 async function main() {
   const currentYear = new Date().getFullYear();
@@ -306,6 +314,9 @@ async function main() {
   }
 }
 
-// main().catch((error) => {
-//   console.error("Error during fetching holidays:", error.message);
-// });
+module.exports = fetchHolidays;
+
+// // Run the main function
+main().catch((error) => {
+  console.error("Error during fetching holidays:", error.message);
+});
